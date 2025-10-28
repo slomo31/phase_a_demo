@@ -416,6 +416,8 @@ async def find_value_bets(
     show_all: If true, shows all predictions even without value (for debugging)
     force_refresh: If true, clears cache and fetches fresh data
     """
+    import asyncio
+    
     if force_refresh:
         print("🔄 FORCE REFRESH: Clearing all caches...")
         import os
@@ -425,18 +427,66 @@ async def find_value_bets(
                 print("  ✓ Deleted nba_cache.db")
         except Exception as e:
             print(f"  ⚠ Could not delete cache: {e}")
+    
     global smart_predictor, smart_predictor_with_injuries, injury_collector
+    
+    # Return early if APIs not ready
     if not odds_api or not nba_api:
-        raise HTTPException(status_code=503, detail="APIs not initialized")
+        return {
+            "date": datetime.now().strftime('%Y-%m-%d'),
+            "total_value_bets": 0,
+            "min_edge": min_edge,
+            "value_bets": [],
+            "message": "APIs initializing... Please refresh in a moment.",
+            "timestamp": datetime.now().isoformat()
+        }
     
     try:
-        # Get all player props
+        # Wrap the main logic in an async function with timeout
+        async def calculate_value_bets():
+            return await asyncio.to_thread(_calculate_value_bets_sync, min_edge, show_all, use_smart)
+        
+        # Set 45 second timeout for the entire operation
+        result = await asyncio.wait_for(calculate_value_bets(), timeout=45.0)
+        return result
+        
+    except asyncio.TimeoutError:
+        print("⏰ Value bets calculation timed out after 45 seconds")
+        return {
+            "date": datetime.now().strftime('%Y-%m-%d'),
+            "total_value_bets": 0,
+            "min_edge": min_edge,
+            "value_bets": [],
+            "message": "Analysis is taking longer than expected. The NBA API may be slow. Please try again in a minute.",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        import traceback
+        print(f"✗ Error finding value bets: {str(e)}")
+        print(traceback.format_exc())
+        return {
+            "date": datetime.now().strftime('%Y-%m-%d'),
+            "total_value_bets": 0,
+            "min_edge": min_edge,
+            "value_bets": [],
+            "message": "Service temporarily unavailable. Please try again.",
+            "timestamp": datetime.now().isoformat()
+        }
+
+def _calculate_value_bets_sync(min_edge: float, show_all: bool, use_smart: bool):
+    """Synchronous function to calculate value bets (called from async with timeout)"""
+    try:
+        # Get all player props with timeout
         all_props = odds_api.get_all_player_props_for_today()
         
         if not all_props:
             return {
-                "message": "No props available today",
-                "value_bets": []
+                "date": datetime.now().strftime('%Y-%m-%d'),
+                "total_value_bets": 0,
+                "min_edge": min_edge,
+                "value_bets": [],
+                "message": "No betting props available today. NBA season may be off.",
+                "timestamp": datetime.now().isoformat()
             }
         
         value_bets = []
@@ -444,91 +494,102 @@ async def find_value_bets(
         players_processed = 0
         players_with_data = 0
         
+        # Limit processing to avoid timeouts
+        max_players = 50  # Process max 50 players
+        
         # Check each player
-        for player_name, props in all_props.items():
+        for idx, (player_name, props) in enumerate(all_props.items()):
+            if idx >= max_players:
+                print(f"  ⚠ Reached max players limit ({max_players}), stopping to avoid timeout")
+                break
+                
             players_processed += 1
             
-            # Search for player
-            player_info = nba_api.search_player(player_name)
-            
-            if not player_info:
-                print(f"  ⚠ Could not find NBA data for: {player_name}")
-                continue
-            
-            player_id = player_info['player_id']
-            
-            # Get game log
-            games = nba_api.get_player_game_log(player_id)
-            
-            if not games or len(games) < 3:
-                print(f"  ⚠ Insufficient games for: {player_name} ({len(games) if games else 0} games)")
-                continue
-            
-            players_with_data += 1
-            
-            # Debug: Show sample of recent games for first few players
-            if players_with_data <= 3:
-                print(f"  ℹ️  {player_name} recent games:")
-                for i, g in enumerate(games[:5]):
-                    game_date = g.get('GAME_DATE', 'Unknown')
-                    # Determine if current or last season
-                    season_label = "🆕" if "2025" in game_date or "Oct" in game_date or "Nov" in game_date else "📅"
-                    print(f"     {season_label} Game {i+1}: {g.get('PTS')}pts, {g.get('REB')}reb, {g.get('AST')}ast on {game_date}")
-            
-            # Check each stat type
-            for stat_type, betting_line in props.items():
-                if not betting_line:
+            try:
+                # Search for player with individual timeout
+                player_info = nba_api.search_player(player_name)
+                
+                if not player_info:
+                    print(f"  ⚠ Could not find NBA data for: {player_name}")
                     continue
                 
-                stat_code = {'points': 'PTS', 'rebounds': 'REB', 'assists': 'AST'}.get(stat_type)
+                player_id = player_info['player_id']
                 
-                if not stat_code:
+                # Get game log with timeout protection
+                games = nba_api.get_player_game_log(player_id)
+                
+                if not games or len(games) < 3:
+                    print(f"  ⚠ Insufficient games for: {player_name} ({len(games) if games else 0} games)")
                     continue
                 
-                # Get context for smart prediction
-                opponent, is_home = parse_opponent_and_location(games[0].get('MATCHUP', '')) if games else (None, True)
-                days_rest = calculate_days_rest(games) if len(games) >= 2 else 2
+                players_with_data += 1
                 
-                # Calculate prediction (smart or naive)
-                if use_smart and smart_predictor:
-                    prediction, confidence, breakdown = smart_predictor.predict_with_context(
-                        games, stat_code,
-                        opponent=opponent,
-                        is_home=is_home,
-                        days_rest=days_rest
-                    )
-                else:
-                    prediction, confidence = calculate_naive_prediction(games, stat_code)
-                    breakdown = None
+                # Debug: Show sample of recent games for first few players
+                if players_with_data <= 3:
+                    print(f"  ℹ️  {player_name} recent games:")
+                    for i, g in enumerate(games[:5]):
+                        game_date = g.get('GAME_DATE', 'Unknown')
+                        season_label = "🆕" if "2025" in game_date or "Oct" in game_date or "Nov" in game_date else "📅"
+                        print(f"     {season_label} Game {i+1}: {g.get('PTS')}pts, {g.get('REB')}reb, {g.get('AST')}ast on {game_date}")
                 
-                if prediction is None:
-                    continue
-                
-                # Calculate edge
-                edge = prediction - betting_line
-                
-                comparison = {
-                    'player': player_name,
-                    'stat_type': stat_type,
-                    'prediction': prediction,
-                    'betting_line': betting_line,
-                    'edge': round(edge, 1),
-                    'confidence': confidence,
-                    'game': props.get('game', 'Unknown'),
-                    'method': 'smart' if use_smart else 'naive'
-                }
-                
-                # Add breakdown if using smart predictions
-                if breakdown:
-                    comparison['breakdown'] = breakdown
-                
-                all_comparisons.append(comparison)
-                
-                # Is it a value bet?
-                if abs(edge) >= min_edge:
-                    comparison['recommendation'] = f"Bet {'OVER' if edge > 0 else 'UNDER'} {betting_line}"
-                    value_bets.append(comparison)
-                    print(f"  🎯 VALUE: {player_name} {stat_type} - Pred: {prediction}, Line: {betting_line}, Edge: {edge:+.1f}")
+                # Check each stat type
+                for stat_type, betting_line in props.items():
+                    if not betting_line:
+                        continue
+                    
+                    stat_code = {'points': 'PTS', 'rebounds': 'REB', 'assists': 'AST'}.get(stat_type)
+                    
+                    if not stat_code:
+                        continue
+                    
+                    # Get context for smart prediction
+                    opponent, is_home = parse_opponent_and_location(games[0].get('MATCHUP', '')) if games else (None, True)
+                    days_rest = calculate_days_rest(games) if len(games) >= 2 else 2
+                    
+                    # Calculate prediction (smart or naive)
+                    if use_smart and smart_predictor:
+                        prediction, confidence, breakdown = smart_predictor.predict_with_context(
+                            games, stat_code,
+                            opponent=opponent,
+                            is_home=is_home,
+                            days_rest=days_rest
+                        )
+                    else:
+                        prediction, confidence = calculate_naive_prediction(games, stat_code)
+                        breakdown = None
+                    
+                    if prediction is None:
+                        continue
+                    
+                    # Calculate edge
+                    edge = prediction - betting_line
+                    
+                    comparison = {
+                        'player': player_name,
+                        'stat_type': stat_type,
+                        'prediction': prediction,
+                        'betting_line': betting_line,
+                        'edge': round(edge, 1),
+                        'confidence': confidence,
+                        'game': props.get('game', 'Unknown'),
+                        'method': 'smart' if use_smart else 'naive'
+                    }
+                    
+                    # Add breakdown if using smart predictions
+                    if breakdown:
+                        comparison['breakdown'] = breakdown
+                    
+                    all_comparisons.append(comparison)
+                    
+                    # Is it a value bet?
+                    if abs(edge) >= min_edge:
+                        comparison['recommendation'] = f"Bet {'OVER' if edge > 0 else 'UNDER'} {betting_line}"
+                        value_bets.append(comparison)
+                        print(f"  🎯 VALUE: {player_name} {stat_type} - Pred: {prediction}, Line: {betting_line}, Edge: {edge:+.1f}")
+                        
+            except Exception as player_error:
+                print(f"  ⚠ Error processing {player_name}: {str(player_error)}")
+                continue  # Skip this player and continue with others
         
         # Sort by absolute edge (biggest edges first)
         value_bets.sort(key=lambda x: abs(x['edge']), reverse=True)
@@ -565,9 +626,9 @@ async def find_value_bets(
         
     except Exception as e:
         import traceback
-        print(f"✗ Error finding value bets: {str(e)}")
+        print(f"✗ Error in sync calculation: {str(e)}")
         print(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Error finding value bets: {str(e)}")
+        raise
 
 @app.get("/odds/games")
 async def get_game_odds():
