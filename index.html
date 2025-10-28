@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Value Bets Dashboard - Live</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            font-size: 36px;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        /* Auto-refresh status bar */
+        .status-bar {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 15px 25px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #48bb78;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connecting {
+            background: #f59e0b;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .refresh-info {
+            font-size: 0.9em;
+            color: #4a5568;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            color: #2d3748;
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .filters h3 {
+            margin-bottom: 20px;
+            color: #2d3748;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group label {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .filter-group select,
+        .filter-group input {
+            padding: 10px 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .filter-group select:focus,
+        .filter-group input:focus {
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .bets-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .bet-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .bet-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .bet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 20px;
+        }
+
+        .player-info h3 {
+            color: #2d3748;
+            font-size: 22px;
+            margin-bottom: 5px;
+        }
+
+        .game-info {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .edge-badge {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .edge-badge.negative {
+            background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
+        }
+
+        .bet-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            text-align: center;
+        }
+
+        .detail-label {
+            color: #a0aec0;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            color: #2d3748;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .recommendation {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .breakdown {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+
+        .breakdown h4 {
+            color: #4a5568;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .adjustment-list {
+            display: grid;
+            gap: 8px;
+        }
+
+        .adjustment-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .adjustment-label {
+            color: #718096;
+            font-size: 13px;
+        }
+
+        .adjustment-value {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .adjustment-value.positive {
+            color: #48bb78;
+        }
+
+        .adjustment-value.negative {
+            color: #f56565;
+        }
+
+        .confidence-bar {
+            background: #e2e8f0;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .no-bets {
+            text-align: center;
+            padding: 60px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .no-bets h3 {
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+
+        .no-bets p {
+            color: #a0aec0;
+        }
+
+        .error-message {
+            background: #fed7d7;
+            border: 2px solid #fc8181;
+            color: #742a2a;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .filter-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏀 NBA Value Bets Dashboard</h1>
+            <p>Smart predictions powered by AI • Live data • Injury adjustments • Auto-refreshing</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot" id="status-dot"></div>
+                <span id="status-text">Connecting to API...</span>
+            </div>
+            <div class="refresh-info">
+                Last updated: <span id="last-update">Never</span> • Auto-refresh: <span id="auto-refresh-status">ON</span>
+            </div>
+        </div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="filters">
+            <h3>Filters</h3>
+            <div class="filter-group">
+                <label>Min Edge:</label>
+                <input type="number" id="minEdge" value="2.0" step="0.5" min="0.5">
+                
+                <label>Stat Type:</label>
+                <select id="statType">
+                    <option value="all">All</option>
+                    <option value="points">Points</option>
+                    <option value="rebounds">Rebounds</option>
+                    <option value="assists">Assists</option>
+                </select>
+                
+                <label>Min Confidence:</label>
+                <input type="number" id="minConfidence" value="50" step="5" min="50" max="95">
+                
+                <button class="btn" onclick="loadData()">🔄 Refresh Now</button>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="loading-spinner"></div>
+                <p>Loading value bets...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Automatically detect if local or deployed
+        const API_BASE = window.location.origin === 'http://localhost:8000' || window.location.origin.includes('localhost') 
+            ? 'http://localhost:8000' 
+            : window.location.origin;
+        
+        const AUTO_REFRESH_INTERVAL = 30000; // 30 seconds
+        let allBets = [];
+        let refreshTimer;
+        let isAutoRefreshEnabled = true;
+
+        // Initialize dashboard
+        async function init() {
+            console.log(`🚀 NBA Dashboard initialized - API: ${API_BASE}`);
+            await loadData();
+            startAutoRefresh();
+        }
+
+        async function loadData() {
+            const content = document.getElementById('content');
+            updateLastRefreshTime();
+            
+            content.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading value bets...</p>
+                </div>
+            `;
+
+            try {
+                const minEdge = document.getElementById('minEdge').value;
+                const response = await fetch(`${API_BASE}/value-bets/today?min_edge=${minEdge}&show_all=true&use_smart=true`);
+                
+                if (!response.ok) {
+                    throw new Error(`API returned ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                allBets = data.value_bets || [];
+                
+                updateStatus('Connected', true);
+                updateStats(data);
+                displayBets(allBets);
+                
+                console.log(`✓ Loaded ${allBets.length} value bets`);
+            } catch (error) {
+                console.error('Error loading data:', error);
+                updateStatus('Connection Error', false);
+                content.innerHTML = `
+                    <div class="no-bets">
+                        <h3>❌ Error Loading Data</h3>
+                        <p>${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the API is running at: <br><code>${API_BASE}</code></p>
+                        <button class="btn" onclick="loadData()" style="margin-top: 20px;">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+
+        function updateStatus(text, isConnected) {
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.getElementById('status-dot');
+            
+            statusText.textContent = text;
+            statusDot.className = isConnected ? 'status-dot' : 'status-dot connecting';
+        }
+
+        function updateLastRefreshTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('last-update').textContent = timeString;
+        }
+
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            
+            refreshTimer = setInterval(() => {
+                if (isAutoRefreshEnabled) {
+                    console.log('🔄 Auto-refreshing data...');
+                    loadData();
+                }
+            }, AUTO_REFRESH_INTERVAL);
+            
+            console.log(`✅ Auto-refresh enabled (every ${AUTO_REFRESH_INTERVAL/1000}s)`);
+        }
+
+        function updateStats(data) {
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Value Bets Found</div>
+                    <div class="stat-value">${data.total_value_bets || 0}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Players Analyzed</div>
+                    <div class="stat-value">${allBets.length > 0 ? new Set(allBets.map(b => b.player)).size : 0}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Edge</div>
+                    <div class="stat-value">${calculateAvgEdge(allBets)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Confidence</div>
+                    <div class="stat-value">${calculateAvgConfidence(allBets)}%</div>
+                </div>
+            `;
+        }
+
+        function calculateAvgEdge(bets) {
+            if (bets.length === 0) return '0.0';
+            const avg = bets.reduce((sum, bet) => sum + Math.abs(bet.edge), 0) / bets.length;
+            return avg.toFixed(1);
+        }
+
+        function calculateAvgConfidence(bets) {
+            if (bets.length === 0) return '0';
+            const avg = bets.reduce((sum, bet) => sum + bet.confidence, 0) / bets.length;
+            return Math.round(avg);
+        }
+
+        function displayBets(bets) {
+            const content = document.getElementById('content');
+            
+            // Apply filters
+            const statType = document.getElementById('statType').value;
+            const minConfidence = parseFloat(document.getElementById('minConfidence').value);
+            
+            const filteredBets = bets.filter(bet => {
+                if (statType !== 'all' && bet.stat_type !== statType) return false;
+                if (bet.confidence < minConfidence) return false;
+                return true;
+            });
+
+            if (filteredBets.length === 0) {
+                content.innerHTML = `
+                    <div class="no-bets">
+                        <h3>🔍 No Value Bets Found</h3>
+                        <p>Try adjusting your filters to see more results</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const betsHTML = filteredBets.map(bet => createBetCard(bet)).join('');
+            content.innerHTML = `<div class="bets-grid">${betsHTML}</div>`;
+        }
+
+        function createBetCard(bet) {
+            const edgeClass = bet.edge >= 0 ? '' : 'negative';
+            const edgeSign = bet.edge >= 0 ? '+' : '';
+            
+            let breakdownHTML = '';
+            if (bet.breakdown) {
+                const adjustments = bet.breakdown.adjustments || {};
+                const adjustmentItems = Object.entries(adjustments)
+                    .filter(([key, value]) => Math.abs(value) > 0)
+                    .map(([key, value]) => {
+                        const valueClass = value >= 0 ? 'positive' : 'negative';
+                        const sign = value >= 0 ? '+' : '';
+                        return `
+                            <div class="adjustment-item">
+                                <span class="adjustment-label">${formatAdjustmentLabel(key)}:</span>
+                                <span class="adjustment-value ${valueClass}">${sign}${value.toFixed(1)}</span>
+                            </div>
+                        `;
+                    }).join('');
+
+                if (adjustmentItems) {
+                    breakdownHTML = `
+                        <div class="breakdown">
+                            <h4>📊 Prediction Breakdown</h4>
+                            <div class="adjustment-list">
+                                <div class="adjustment-item">
+                                    <span class="adjustment-label">Base Prediction:</span>
+                                    <span class="adjustment-value">${bet.breakdown.base_prediction}</span>
+                                </div>
+                                ${adjustmentItems}
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            return `
+                <div class="bet-card">
+                    <div class="bet-header">
+                        <div class="player-info">
+                            <h3>${bet.player}</h3>
+                            <div class="game-info">📍 ${bet.game}</div>
+                        </div>
+                        <div class="edge-badge ${edgeClass}">
+                            ${edgeSign}${bet.edge.toFixed(1)}
+                        </div>
+                    </div>
+
+                    <div class="recommendation">
+                        ${bet.recommendation || 'No recommendation'}
+                    </div>
+
+                    <div class="bet-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Stat</div>
+                            <div class="detail-value">${bet.stat_type.toUpperCase()}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Prediction</div>
+                            <div class="detail-value">${bet.prediction}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Line</div>
+                            <div class="detail-value">${bet.betting_line}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Confidence</div>
+                            <div class="detail-value">${bet.confidence.toFixed(0)}%</div>
+                        </div>
+                    </div>
+
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${bet.confidence}%"></div>
+                    </div>
+
+                    ${breakdownHTML}
+                </div>
+            `;
+        }
+
+        function formatAdjustmentLabel(key) {
+            const labels = {
+                'opponent': '🏀 Opponent',
+                'home_away': '🏠 Home/Away',
+                'rest': '😴 Rest',
+                'form': '🔥 Form',
+                'minutes': '⏱️ Minutes',
+                'injuries': '💊 Injuries'
+            };
+            return labels[key] || key;
+        }
+
+        // Filter change handlers
+        document.getElementById('statType').addEventListener('change', () => displayBets(allBets));
+        document.getElementById('minConfidence').addEventListener('change', () => displayBets(allBets));
+
+        // Pause auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('⏸️ Page hidden - pausing auto-refresh');
+            } else {
+                console.log('▶️ Page visible - resuming auto-refresh');
+            }
+        });
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

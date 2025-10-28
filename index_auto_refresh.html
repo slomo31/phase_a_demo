@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA Prediction System - Live Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .status-bar {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 15px 25px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .refresh-info {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .card-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .prediction-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+        }
+
+        .prediction-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .player-name {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+        }
+
+        .prediction-details {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .detail-label {
+            font-size: 0.75em;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95em;
+        }
+
+        .confidence-high {
+            color: #22c55e;
+        }
+
+        .confidence-medium {
+            color: #f59e0b;
+        }
+
+        .confidence-low {
+            color: #ef4444;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+        }
+
+        .manual-refresh-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+
+        .manual-refresh-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .manual-refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+                text-align: center;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏀 NBA Prediction System</h1>
+            <p>Live Smart Betting Predictions</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span id="status-text">Connected to API</span>
+            </div>
+            <div class="refresh-info">
+                Last updated: <span id="last-update">Loading...</span>
+            </div>
+            <button class="manual-refresh-btn" onclick="manualRefresh()">
+                🔄 Refresh Now
+            </button>
+        </div>
+
+        <div id="error-container"></div>
+
+        <div class="dashboard-grid">
+            <!-- Today's Top Predictions -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Today's Top Picks</div>
+                    <div class="card-badge" id="predictions-count">0 picks</div>
+                </div>
+                <div id="predictions-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading predictions...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Injury Reports -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🏥 Injury Reports</div>
+                    <div class="card-badge" id="injuries-count">0 injuries</div>
+                </div>
+                <div id="injuries-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading injury data...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hot Players -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">🔥 Hot Players</div>
+                    <div class="card-badge">Trending</div>
+                </div>
+                <div id="hot-players-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Analyzing form...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = window.location.origin; // Automatically use current domain
+        const REFRESH_INTERVAL = 30000; // 30 seconds
+        let refreshTimer;
+
+        // Initialize dashboard
+        async function initDashboard() {
+            console.log('🚀 Initializing NBA Prediction Dashboard...');
+            await loadAllData();
+            startAutoRefresh();
+        }
+
+        // Load all data
+        async function loadAllData() {
+            updateLastRefreshTime();
+            await Promise.all([
+                loadPredictions(),
+                loadInjuries(),
+                loadHotPlayers()
+            ]);
+        }
+
+        // Load predictions
+        async function loadPredictions() {
+            try {
+                const response = await fetch(`${API_URL}/api/predictions/today`);
+                if (!response.ok) throw new Error('Failed to fetch predictions');
+                
+                const data = await response.json();
+                displayPredictions(data.data?.games || []);
+                updateStatus('Connected', true);
+            } catch (error) {
+                console.error('Error loading predictions:', error);
+                displayError('predictions-container', 'Unable to load predictions. API may be starting up...');
+                updateStatus('Connecting...', false);
+            }
+        }
+
+        // Load injuries
+        async function loadInjuries() {
+            try {
+                const response = await fetch(`${API_URL}/api/injuries`);
+                if (!response.ok) throw new Error('Failed to fetch injuries');
+                
+                const data = await response.json();
+                displayInjuries(data.injuries || []);
+            } catch (error) {
+                console.error('Error loading injuries:', error);
+                displayError('injuries-container', 'Unable to load injury data');
+            }
+        }
+
+        // Load hot players
+        async function loadHotPlayers() {
+            try {
+                // This would call your actual hot players endpoint
+                const mockHotPlayers = [
+                    { name: 'Luka Doncic', stat: 'Points', value: 32.5, trend: '+8.2' },
+                    { name: 'Giannis A.', stat: 'Rebounds', value: 12.3, trend: '+3.1' },
+                    { name: 'Jayson Tatum', stat: 'Points', value: 28.7, trend: '+5.4' }
+                ];
+                displayHotPlayers(mockHotPlayers);
+            } catch (error) {
+                console.error('Error loading hot players:', error);
+                displayError('hot-players-container', 'Unable to load hot players');
+            }
+        }
+
+        // Display predictions
+        function displayPredictions(predictions) {
+            const container = document.getElementById('predictions-container');
+            const countBadge = document.getElementById('predictions-count');
+            
+            if (predictions.length === 0) {
+                container.innerHTML = '<div class="no-data">No predictions available for today</div>';
+                countBadge.textContent = '0 picks';
+                return;
+            }
+
+            countBadge.textContent = `${predictions.length} picks`;
+            
+            container.innerHTML = predictions.map(pred => `
+                <div class="prediction-item">
+                    <div class="player-name">${pred.player_name || 'Player Name'}</div>
+                    <div class="prediction-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Market</span>
+                            <span class="detail-value">${pred.market || 'Points O/U'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Line</span>
+                            <span class="detail-value">${pred.line || '25.5'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Prediction</span>
+                            <span class="detail-value">${pred.prediction || 'Over'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Confidence</span>
+                            <span class="detail-value confidence-${(pred.confidence || 'medium').toLowerCase()}">
+                                ${(pred.confidence || 'Medium')}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Display injuries
+        function displayInjuries(injuries) {
+            const container = document.getElementById('injuries-container');
+            const countBadge = document.getElementById('injuries-count');
+            
+            if (injuries.length === 0) {
+                container.innerHTML = '<div class="no-data">No injury reports</div>';
+                countBadge.textContent = '0 injuries';
+                return;
+            }
+
+            countBadge.textContent = `${injuries.length} injuries`;
+            
+            container.innerHTML = injuries.map(injury => `
+                <div class="prediction-item">
+                    <div class="player-name">${injury.player_name || 'Player'}</div>
+                    <div class="prediction-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Status</span>
+                            <span class="detail-value">${injury.status || 'Out'}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Injury</span>
+                            <span class="detail-value">${injury.injury_type || 'Various'}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Display hot players
+        function displayHotPlayers(players) {
+            const container = document.getElementById('hot-players-container');
+            
+            container.innerHTML = players.map(player => `
+                <div class="prediction-item">
+                    <div class="player-name">${player.name}</div>
+                    <div class="prediction-details">
+                        <div class="detail-item">
+                            <span class="detail-label">Category</span>
+                            <span class="detail-value">${player.stat}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Average</span>
+                            <span class="detail-value">${player.value}</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="detail-label">Trend</span>
+                            <span class="detail-value confidence-high">${player.trend}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Display error
+        function displayError(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="no-data">⚠️ ${message}</div>`;
+        }
+
+        // Update status
+        function updateStatus(text, isConnected) {
+            const statusText = document.getElementById('status-text');
+            const statusDot = document.querySelector('.status-dot');
+            
+            statusText.textContent = text;
+            statusDot.style.background = isConnected ? '#4ade80' : '#f59e0b';
+        }
+
+        // Update last refresh time
+        function updateLastRefreshTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            document.getElementById('last-update').textContent = timeString;
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            
+            refreshTimer = setInterval(() => {
+                console.log('🔄 Auto-refreshing data...');
+                loadAllData();
+            }, REFRESH_INTERVAL);
+            
+            console.log(`✅ Auto-refresh enabled (every ${REFRESH_INTERVAL/1000} seconds)`);
+        }
+
+        // Manual refresh
+        async function manualRefresh() {
+            console.log('🔄 Manual refresh triggered');
+            await loadAllData();
+        }
+
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', initDashboard);
+
+        // Stop refresh when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (refreshTimer) clearInterval(refreshTimer);
+                console.log('⏸️ Auto-refresh paused (page hidden)');
+            } else {
+                startAutoRefresh();
+                console.log('▶️ Auto-refresh resumed');
+            }
+        });
+    </script>
+</body>
+</html>

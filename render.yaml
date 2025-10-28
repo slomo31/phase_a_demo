@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: nba-prediction-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn phase_b_api:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: NBA_API_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false
+    
+  # Automated data refresh job (runs daily at 6 AM EST)
+  - type: cron
+    name: daily-data-refresh
+    env: python
+    schedule: "0 11 * * *"  # 11 AM UTC = 6 AM EST
+    buildCommand: pip install -r requirements.txt
+    startCommand: python data_refresh_job.py
+    envVars:
+      - key: NBA_API_KEY
+        sync: false
+      - key: ODDS_API_KEY
+        sync: false

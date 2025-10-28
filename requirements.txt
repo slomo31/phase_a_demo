@@ -1,0 +1,22 @@
+# Core API Framework
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# HTTP Requests
+httpx
+requests
+
+# Data Processing (let pip pick compatible versions)
+pandas
+numpy
+
+# NBA Data
+nba_api
+
+# Validation
+pydantic
+
+# Optional: Database support
+sqlalchemy
+psycopg2-binary
