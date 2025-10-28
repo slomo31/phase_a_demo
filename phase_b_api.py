@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 from datetime import datetime
 from contextlib import asynccontextmanager
+import socket
+socket.setdefaulttimeout(60)
 import os
 
 # Import Phase A logic
