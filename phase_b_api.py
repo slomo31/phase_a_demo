@@ -127,6 +127,44 @@ async def lifespan(app: FastAPI):
 
     print("="*60 + "\n")
 
+    # Pre-warm cache on startup to avoid cold start delays
+    print("\n" + "="*60)
+    print("🔥 PRE-WARMING CACHE...")
+    print("="*60)
+
+    try:
+        # Pre-load common player list (most expensive call)
+        if nba_api:
+            print("  → Loading all players list...")
+            nba_api.search_player("LeBron James")  # This caches the full player list
+            print("  ✓ Player list cached")
+
+        # Pre-load top players' game logs
+        top_players = [
+            ("LeBron James", "2544"),
+            ("Stephen Curry", "201939"),
+            ("Kevin Durant", "201142"),
+            ("Giannis Antetokounmpo", "203507"),
+            ("Luka Doncic", "1629029")
+        ]
+
+        print(f"  → Pre-loading game logs for {len(top_players)} top players...")
+        for player_name, player_id in top_players:
+            try:
+                games = nba_api.get_player_game_log(player_id)
+                if games:
+                    print(f"    ✓ {player_name}: {len(games)} games cached")
+            except Exception as e:
+                print(f"    ⚠ {player_name}: {str(e)}")
+
+        print("="*60)
+        print("✅ CACHE PRE-WARMED - API READY FOR FAST RESPONSES")
+        print("="*60 + "\n")
+
+    except Exception as e:
+        print(f"⚠ Cache pre-warm failed (non-critical): {e}")
+        print("  API will still work, but first requests may be slower\n")
+
     yield  # Application runs
 
     print("Shutting down...")
