@@ -448,12 +448,12 @@ async def find_value_bets(
         async def calculate_value_bets():
             return await asyncio.to_thread(_calculate_value_bets_sync, min_edge, show_all, use_smart)
         
-        # Set 45 second timeout for the entire operation
-        result = await asyncio.wait_for(calculate_value_bets(), timeout=45.0)
+        # Set 120 second timeout for the entire operation
+        result = await asyncio.wait_for(calculate_value_bets(), timeout=120.0)  # 2 minutes
         return result
-        
+
     except asyncio.TimeoutError:
-        print("⏰ Value bets calculation timed out after 45 seconds")
+        print("⏰ Value bets calculation timed out after 120 seconds")  # Update this too
         return {
             "date": datetime.now().strftime('%Y-%m-%d'),
             "total_value_bets": 0,
